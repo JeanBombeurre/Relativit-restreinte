@@ -1,0 +1,201 @@
+<html>
+<body style="background-color:grey">
+<center>
+<canvas id="canvas" width=800 height=600 />
+</center>
+<script>
+
+/*
+x'= g(x-vt)
+t'=g(t-xv/c²)    -->constance de t-xv/c² 
+*/
+let canvas=document.getElementById("canvas")
+let ctx=canvas.getContext("2d")
+const W=800
+const H=600
+const zoom=30
+
+function eff(){
+	ctx.fillStyle="black"
+	ctx.fillRect(0, 0, W, H);
+	
+}
+ctx.strokestyle="white"
+function line(x,y,x2,y2){
+	ctx.beginPath()
+	ctx.moveTo(W/2+x*zoom,H/2-y*zoom)
+	ctx.lineTo(W/2+x2*zoom,H/2-y2*zoom)
+	ctx.stroke()
+}
+function dot(x,y,col="white"){
+	ctx.beginPath()
+	ctx.arc(x*zoom+ W/2, H/2-zoom*y, zoom/10, 0, Math.PI*2) 
+	ctx.fillStyle=col
+	ctx.fill()
+}
+class V{
+	constructor(x,y){this.x=x;this.y=y}
+	plus(b){return new V(b.x+this.x,b.y+this.y)}
+	moins(b){return new V(-b.x+this.x,-b.y+this.y)}
+	sc(v){return v.x*this.x+v.y*this.y}
+	scal(v){return this.sc(v)}
+	f(n){return new V(n*this.x, this.y*n)}
+	u(){return this.f(1/Math.sqrt(this.sc(this)))}
+	n2(){return this.sc(this)}
+}
+function gamma(v){
+	return 1/Math.sqrt(1-v.scal(v))
+}
+class Line{
+	static list=[]
+	constructor(vie, col="white"){//vie: fonction de t_origine, a, b: bornes
+		this.vie=vie
+		this.col=col;
+		Line.list.push(this)
+	}
+	solveT(v, pos, t_O){//v: ma vitesse pour O, pos, t_O:temps pour 0
+	//dichotomie
+	//je veux trouver t-xv/c²=0 relatif à cur
+		let goup=t=>(t-t_O - this.vie(t).moins(pos).sc(v) < 0)
+		let inut=1;
+		let a,b;
+		if(goup(t_O)){
+			while(goup(t_O+inut)) inut*=2
+			//entre 0 et inut
+			a=0;
+			b=inut
+		}else{
+			while(!goup(t_O-inut)) inut*=2
+			//entre 0 et -inut
+			a=-inut;
+			b=0
+		}
+		while(b-a>0.0005){
+			let m=(b+a)/2
+			if(goup(t_O+m)) a=m
+			else b=m
+		}
+		return t_O+(a+b)/2   // temps pour O de l'evenement percu par M
+	}
+	getX(v,pos,t_O){
+		let t=this.solveT(v,pos,t_O)
+		let inu=this.vie(t).moins(pos)
+		if(v.sc(v)==0) return inu
+		let p=v.f(inu.sc(v)/v.n2())
+		return p.f(1/g).plus(inu.moins(p))
+	}
+}
+function actuvit(){
+	let amp=0.08
+	if(kp.ArrowRight)vit.x+=amp
+	if(kp.ArrowLeft)vit.x-=amp
+	if(kp.ArrowUp)vit.y+=amp
+	if(kp.ArrowDown)vit.y-=amp
+	if(vit.sc(vit)>0.95) vit=vit.u().f(Math.sqrt(0.95))
+}
+const log= console.log;
+let avspecial=new V(0,0)
+function affall(){
+	eff()
+	let ex,ey,z;
+	for(let i of Line.list){
+		let see=i.getX(vit,pos,t_O)
+		if(i.col!=-1)dot(see.x, see.y,i.col)
+		if(i.special){
+			console.log(Math.round(10000*avspecial.moins(see).n2()/dt/dt))
+			
+			avspecial=see
+
+		}
+		if(i.ex) ex=see;
+		if(i.z) z=see;
+		if(i.ey) ey=see;
+		
+	}
+	for(let x=-10;x<11;x+=2){
+		for(let y=-10;y<11;y+=2){
+			let a=z.plus(ex.moins(z).f(x)).plus(ey.moins(z).f(y))
+			let b=a.plus(ex.moins(z).f(2))
+			let c=a.plus(ey.moins(z).f(2))
+			ctx.strokeStyle="lightgrey"
+			line(a.x,a.y,b.x,b.y)
+			line(a.x,a.y,c.x,c.y)
+			
+		}
+	}
+	
+	ctx.strokeStyle="lightgreen"
+	line(0,1,0,-1)
+	line(1,0,-1,0)
+	ctx.strokeStyle="white"
+}
+function genereLines(){
+	//origine
+	let static=pos=>(t=>pos)
+	for(let i=0;i<12;i++){
+		new Line(static(new V(Math.cos(i/12*2*Math.PI),Math.sin(i/12*2*Math.PI))))
+	}
+	for(let i=0;i<10;i++){
+		new Line(static(new V(3,i/2)))
+	}
+	let u= t=>new V(Math.cos(t),Math.sin(t))
+	let tourne=(r,theta)=>(t=>u(t/3-theta).f(r))
+	for(let r=0;r<3;r+=0.2){
+		new Line(tourne(r,0),"red")
+		new Line(tourne(r,2*Math.PI/5),"lightblue")
+		new Line(tourne(r,-2*Math.PI/5),"lightgreen")
+		new Line(tourne(r,4*Math.PI/5),"yellow")
+		new Line(tourne(r,-4*Math.PI/5),"pink")
+		
+	}
+	//light
+	let rebond= (p,u,r) => (t=>(t%(2*r)<r)?p.plus(u.f(t%r)):p.plus(u.f(r)).moins(u.f(t%r)))
+	new Line(rebond(new V(0,3), new V(1,0), 10))
+	new Line(rebond(new V(-3,3), new V(1,-1).u(), 10))
+	Line.list[Line.list.length-1].special=true;
+
+	new Line(static(new V(0,0)),-1).z=true;
+	new Line(static(new V(1,0)),-1).ex=true;
+	new Line(static(new V(0,1)),-1).ey=true;
+	
+	new Line(rebond(new V(40,3), new V(1,0), 10))
+
+	for(let i=0;i<30;i++){
+		new Line(rebond(new V(0,1), u(i/30*2*Math.PI), 10), "red")
+	}
+
+}
+const dt=0.1
+const c=1//
+let pos=new V(0,0) /////////position relative à l'origine
+let vit=new V(0.4,0)/////dans le ref origine
+
+eff()
+let kp={}
+document.onkeydown=e=>{kp[e.key]=true;if(e.key=="a")vit=new V(0,0);return (e.key=='x' && (go=(!go)))?main():0}
+document.onkeyup=e=>{kp[e.key]=false}
+
+genereLines()
+
+let go=0
+let t_O=0;
+let g=1;
+let tM=0;
+function main(){
+	actuvit()
+	g=gamma(vit)
+	const curdt=dt*g
+	tM+=dt
+	t_O+=curdt //////// temps actuel selon O
+	pos=pos.plus(vit.f(curdt))
+
+	affall()
+
+	
+	if(!go) return
+	window.requestAnimationFrame(main)
+}
+
+</script>
+</body>
+</html>
